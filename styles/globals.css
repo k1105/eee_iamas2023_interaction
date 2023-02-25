@@ -16,6 +16,7 @@ body,
   -ms-user-select: none;
   user-select: none;
   overflow: hidden;
+  background: #397fad;
 }
 
 #root {
@@ -28,8 +29,7 @@ body {
   overscroll-behavior-y: none;
   font-family: -apple-system, BlinkMacSystemFont, avenir next, avenir,
     helvetica neue, helvetica, ubuntu, roboto, noto, segoe ui, arial, sans-serif;
-  color: black;
-  background: white;
+  color: #dcdcdc;
   cursor: none;
 }
 
@@ -37,7 +37,6 @@ li {
   margin: 5px;
   margin-bottom: 20px;
   font-size: 0.8rem;
-  color: #dcdcdc;
 }
 
 p {
@@ -45,5 +44,4 @@ p {
   margin-bottom: 20px;
   margin-left: 30px;
   font-size: 0.8rem;
-  color: #dcdcdc;
 }
