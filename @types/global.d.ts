@@ -5,3 +5,5 @@ type SketchProps = {
   p5: p5Types;
   hands: handPoseDetection.Keypoint[][];
 };
+
+type Lost = { state: boolean; prev: boolean; at: number };
