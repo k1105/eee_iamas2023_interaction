@@ -3,7 +3,10 @@ import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
 
 export const organizeFinger = (
   p5: p5Types,
-  hands: handPoseDetection.Keypoint[][]
+  hands: {
+    left: handPoseDetection.Keypoint[];
+    right: handPoseDetection.Keypoint[];
+  }
 ) => {
   // --
   // <> pinky
@@ -26,13 +29,13 @@ export const organizeFinger = (
   let start;
   let end;
 
-  if (hands.length === 1) {
-    hands.push(hands[0]);
+  if (hands.left.length == 0) {
+    hands.left = hands.right;
+  } else if (hands.right.length == 0) {
+    hands.right = hands.left;
   }
 
-  for (let index = 0; index < 2; index++) {
-    const keys = hands[index];
-
+  [hands.left, hands.right].forEach((hand, index) => {
     p5.push();
     p5.translate(0, window.innerHeight / 2);
 
@@ -47,7 +50,7 @@ export const organizeFinger = (
       p5.translate((window.innerWidth / 6) * (n + 1), 0);
 
       p5.push();
-      const d = keys[end].y - keys[start].y;
+      const d = hand[end].y - hand[start].y;
       if (index === 1) {
         if (r < p5.abs(d)) {
           p5.line(offset, 0, offset, -3 * r);
@@ -92,5 +95,5 @@ export const organizeFinger = (
     }
 
     p5.pop();
-  }
+  });
 };

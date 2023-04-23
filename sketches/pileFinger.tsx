@@ -3,7 +3,10 @@ import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
 
 export const pileFinger = (
   p5: p5Types,
-  hands: handPoseDetection.Keypoint[][]
+  hands: {
+    left: handPoseDetection.Keypoint[];
+    right: handPoseDetection.Keypoint[];
+  }
 ) => {
   // --
   // <> pinky
@@ -26,13 +29,13 @@ export const pileFinger = (
   let start: number = 0;
   let end: number = 0;
 
-  if (hands.length === 1) {
-    hands.push(hands[0]);
+  if (hands.left.length == 0) {
+    hands.left = hands.right;
+  } else if (hands.right.length == 0) {
+    hands.right = hands.left;
   }
 
-  for (let index = 0; index < 2; index++) {
-    const keys = hands[index];
-
+  [hands.left, hands.right].forEach((hand, index) => {
     p5.push();
     p5.translate(0, (2 * window.innerHeight) / 3);
 
@@ -40,8 +43,8 @@ export const pileFinger = (
       if (n === 0) {
         p5.translate(window.innerWidth / 2, 0);
       } else {
-        let h0_d = hands[0][end].y - hands[0][start].y;
-        let h1_d = hands[1][end].y - hands[1][start].y;
+        let h0_d = hands.left[end].y - hands.left[start].y;
+        let h1_d = hands.right[end].y - hands.right[start].y;
         if (r < p5.abs(h0_d)) {
           h0_d = -r;
         } else if (h0_d > 0) {
@@ -66,7 +69,7 @@ export const pileFinger = (
 
       p5.push();
       p5.translate((-1) ** (1 - index) * offset, 0);
-      const d = keys[end].y - keys[start].y;
+      const d = hand[end].y - hand[start].y;
       //   if (index === 1) {
       //     if (r < p5.abs(d)) {
       //       p5.line(offset, 0, offset, -3 * r);
@@ -116,7 +119,6 @@ export const pileFinger = (
           p5.line(-p5.sqrt(r ** 2 - d ** 2), (3 * d) / 2, 0, 3 * d);
         }
       }
-
       p5.push();
       p5.translate(0, 30);
       p5.noStroke();
@@ -130,5 +132,5 @@ export const pileFinger = (
     }
 
     p5.pop();
-  }
+  });
 };

@@ -82,6 +82,7 @@ export default function App() {
   return (
     <>
       {/* //optional sketch */}
+      {ready && <DisplayFinger rawHandsRef={predictionsRef} />}
       <div
         style={{
           position: "absolute",
@@ -110,7 +111,7 @@ export default function App() {
           </li>
         </ol>
       </div>
-      {ready && <DisplayFinger predictionsRef={predictionsRef} />}
+
       <div
         style={{
           position: "absolute",

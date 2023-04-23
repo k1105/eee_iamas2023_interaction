@@ -3,13 +3,14 @@ import { spreadFinger } from "./spreadFinger";
 import { organizeFinger } from "./organizeFinger";
 import { pileFinger } from "./pileFinger";
 import p5Types from "p5";
-import { MutableRefObject } from "react";
+import { MutableRefObject, useRef } from "react";
 import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
-import Image from "next/image";
-import { useRef } from "react";
+import { getSmoothedHandpose } from "../lib/getSmoothedHandpose";
+import { updateRawHandsHistory } from "../lib/updateRawHandsHistory";
+import { Instruction } from "../components/Instruction";
 
 type Props = {
-  predictionsRef: MutableRefObject<handPoseDetection.Hand[]>;
+  rawHandsRef: MutableRefObject<handPoseDetection.Hand[]>;
 };
 
 const Sketch = dynamic(import("react-p5"), {
@@ -17,39 +18,16 @@ const Sketch = dynamic(import("react-p5"), {
   ssr: false,
 });
 
-export const DisplayFinger = ({ predictionsRef }: Props) => {
+export const DisplayFinger = ({ rawHandsRef }: Props) => {
   const functions = [spreadFinger, organizeFinger, pileFinger];
   const instructionRef = useRef<HTMLDivElement>(null);
   let styleIndex = 0;
-  let lostAt = 0;
-  let lost = false;
-  let isPlayerExist = false;
-  let playerLeftAt = 0;
-  const keyflames: [
-    handPoseDetection.Keypoint[][],
-    handPoseDetection.Keypoint[][]
-  ] = [[], []];
-  const calcAverageKeypoints = (keyarr: handPoseDetection.Keypoint[][]) => {
-    const keys = [];
-    if (keyarr.length > 0) {
-      for (let i = 0; i < 21; i++) {
-        let totalWeight = 0;
-        let val = { x: 0, y: 0 };
-        for (let j = 0; j < keyarr.length; j++) {
-          const weight =
-            (keyarr.length - 1) / 2 - Math.abs((keyarr.length - 1) / 2 - j) + 1;
-          totalWeight += weight;
-          val.x += keyarr[j][i].x * weight;
-          val.y += keyarr[j][i].y * weight;
-        }
-        keys.push({ x: val.x / totalWeight, y: val.y / totalWeight });
-      }
-
-      return keys;
-    } else {
-      return [];
-    }
-  };
+  let lost: { state: boolean; at: number } = { state: false, at: 0 };
+  let playerLeft: { state: boolean; at: number } = { state: false, at: 0 };
+  let rawHandsHistory: {
+    left: handPoseDetection.Keypoint[][];
+    right: handPoseDetection.Keypoint[][];
+  } = { left: [], right: [] };
   /**
    * Sketch
    */
@@ -65,46 +43,46 @@ export const DisplayFinger = ({ predictionsRef }: Props) => {
   };
 
   const draw = (p5: p5Types) => {
-    if (isPlayerExist) {
-      //@ts-ignore
-      if (instructionRef.current) instructionRef.current.style.opacity = 0;
+    const rawHands = rawHandsRef.current;
+    if (playerLeft.state) {
+      if (instructionRef.current) instructionRef.current.style.opacity = "0";
     }
 
-    let hands = [];
     p5.background(57, 127, 173);
     p5.push();
-    if (typeof predictionsRef.current == "object") {
-      try {
-        if (predictionsRef.current.length === 0) {
-          if (!lost) {
-            lost = true;
-            lostAt = new Date().getTime();
-            playerLeftAt = new Date().getTime();
-          }
-          if (new Date().getTime() - playerLeftAt > 30000) {
-            if (instructionRef.current)
-              //@ts-ignore
-              instructionRef.current.style.opacity = 1;
-          }
-        } else {
-          isPlayerExist = true;
-          if (lost && new Date().getTime() - lostAt > 1000) {
-            // //トラッキングがロストしてから1s経ったら
-            styleIndex = (styleIndex + 1) % functions.length;
-            // styleIndex = 5;
-          }
-          lost = false;
-        }
+    if (rawHands.length === 0) {
+      //トラックされていない・トラックがロストした場合の処理
+      if (!lost.state) {
+        //現在のstateがlostではなかった場合
+        lost.state = true;
+        lost.at = new Date().getTime();
+        playerLeft.at = new Date().getTime();
+      }
+      if (new Date().getTime() - playerLeft.at > 30000) {
+        // ユーザが存在しない状態（=トラックされていない状態）が一定時間以上経過したら
+        //instructionの表示
+        if (instructionRef.current)
+          //@ts-ignore
+          instructionRef.current.style.opacity = 1;
+      }
+    } else {
+      //手指の動きが認識された場合
+      playerLeft.state = true;
+      if (lost.state && new Date().getTime() - lost.at > 1000) {
+        // //ロスト復帰したタイミングで、1s以上経過していた場合
+        styleIndex = (styleIndex + 1) % functions.length; //表示するスケッチファイルを変更
+      }
+      lost.state = false;
+    }
 
-        for (let index = 0; index < predictionsRef.current.length; index++) {
-          keyflames[index].push(predictionsRef.current[index].keypoints);
-          if (keyflames[index].length > 5) {
-            keyflames[index].shift();
-          }
-          hands.push(calcAverageKeypoints(keyflames[index]));
-        }
-        functions[styleIndex](p5, hands);
-      } catch (e) {}
+    rawHandsHistory = updateRawHandsHistory(rawHands, rawHandsHistory); //rawHandsHistoryの更新
+    const hands: {
+      left: handPoseDetection.Keypoint[];
+      right: handPoseDetection.Keypoint[];
+    } = getSmoothedHandpose(rawHands, rawHandsHistory); //平滑化された手指の動きを取得する
+
+    if (hands.left.length > 0 || hands.right.length > 0) {
+      functions[styleIndex](p5, hands);
     }
   };
 
@@ -114,25 +92,10 @@ export const DisplayFinger = ({ predictionsRef }: Props) => {
 
   return (
     <>
-      <div
-        ref={instructionRef}
-        style={{
-          position: "absolute",
-          width: "100vw",
-          height: "100vh",
-          textAlign: "center",
-        }}
-      >
-        <div style={{ display: "inline-block", marginTop: "30vh" }}>
-          <Image
-            width={300}
-            height={300}
-            src={"/img/player.svg"}
-            alt="player"
-          />
-          <p style={{ color: "white" }}>画面の前に手を出してください。</p>
-        </div>
+      <div ref={instructionRef}>
+        <Instruction />
       </div>
+
       <Sketch
         preload={preload}
         setup={setup}
