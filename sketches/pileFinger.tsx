@@ -17,8 +17,9 @@ export const pileFinger = (
   // --
   // if one hand is detected, both side of organ is shrink / extend.
   // if two hands are detected, each side of organ changes according to each hand.
-  const r = 50;
-  const offset = 60;
+  const r = 150; // <の長さ.
+  const offset = 60; // 左右の手指の出力位置の間隔
+  const scale = 2.5; // 指先と付け根の距離の入力値に対する、出力時に使うスケール比。
   const fingerNames = [
     "thumb",
     "index finger",
@@ -29,108 +30,71 @@ export const pileFinger = (
   let start: number = 0;
   let end: number = 0;
 
-  if (hands.left.length == 0) {
-    hands.left = hands.right;
-  } else if (hands.right.length == 0) {
-    hands.right = hands.left;
-  }
+  if (hands.left.length > 0 || hands.right.length > 0) {
+    //右手、左手のうちのどちらかが認識されていた場合
+    // 片方の手の動きをもう片方に複製する
+    if (hands.left.length == 0) {
+      hands.left = hands.right;
+    } else if (hands.right.length == 0) {
+      hands.right = hands.left;
+    }
 
-  [hands.left, hands.right].forEach((hand, index) => {
-    p5.push();
-    p5.translate(0, (2 * window.innerHeight) / 3);
+    p5.translate(window.innerWidth / 2, (2 * window.innerHeight) / 3);
 
     for (let n = 0; n < 5; n++) {
-      if (n === 0) {
-        p5.translate(window.innerWidth / 2, 0);
-      } else {
-        let h0_d = hands.left[end].y - hands.left[start].y;
-        let h1_d = hands.right[end].y - hands.right[start].y;
-        if (r < p5.abs(h0_d)) {
-          h0_d = -r;
-        } else if (h0_d > 0) {
-          h0_d = 0;
-        }
-
-        if (r < p5.abs(h1_d)) {
-          h1_d = -r;
-        } else if (h1_d > 0) {
-          h1_d = 0;
-        }
-        p5.translate(0, (3 * (h0_d + h1_d)) / 2);
-        p5.rotate(-Math.atan2(3 * (h0_d - h1_d), 2 * offset));
-      }
-
-      //   p5.rotate(
-      //     p5.atan2(hands[0][end].y - hands[1].y, hands[0][end].x - hands[1].x)
-      //   );
-
       start = 4 * n + 1;
       end = 4 * n + 4;
 
-      p5.push();
-      p5.translate((-1) ** (1 - index) * offset, 0);
-      const d = hand[end].y - hand[start].y;
-      //   if (index === 1) {
-      //     if (r < p5.abs(d)) {
-      //       p5.line(offset, 0, offset, -3 * r);
-      //     } else if (d > 0) {
-      //       p5.line(offset, 0, (3 * r) / 2, 0);
-      //     } else {
-      //       p5.line(offset, 0, offset + p5.sqrt(r ** 2 - d ** 2), (3 * d) / 2);
-      //       p5.line(
-      //         offset + p5.sqrt(r ** 2 - d ** 2),
-      //         (3 * d) / 2,
-      //         offset,
-      //         3 * d
-      //       );
-      //     }
-      //   } else if (d > 0) {
-      //     p5.line(-offset, 0, -(3 * r) / 2, 0);
-      //   } else {
-      //     if (r < p5.abs(d)) {
-      //       p5.line(-offset, 0, -offset, -3 * r);
-      //     } else {
-      //       p5.line(-offset, 0, -offset - p5.sqrt(r ** 2 - d ** 2), (3 * d) / 2);
-      //       p5.line(
-      //         -offset - p5.sqrt(r ** 2 - d ** 2),
-      //         (3 * d) / 2,
-      //         -offset,
-      //         3 * d
-      //       );
-      //     }
-      //   }
+      const left_d = (hands.left[end].y - hands.left[start].y) * scale;
+      const right_d = (hands.right[end].y - hands.right[start].y) * scale;
 
-      if (index === 1) {
-        if (r < p5.abs(d)) {
-          p5.line(0, 0, 0, -3 * r);
+      [left_d, right_d].forEach((d, index) => {
+        const sign = (-1) ** (1 - index); //正負の符号
+        p5.push();
+        p5.translate(sign * offset, 0);
+
+        if (r < Math.abs(d)) {
+          p5.line(0, 0, 0, -r);
         } else if (d > 0) {
-          p5.line(0, 0, (3 * r) / 2, 0);
+          p5.line(0, 0, (sign * r) / 2, 0);
         } else {
-          p5.line(0, 0, p5.sqrt(r ** 2 - d ** 2), (3 * d) / 2);
-          p5.line(p5.sqrt(r ** 2 - d ** 2), (3 * d) / 2, 0, 3 * d);
+          p5.line(0, 0, (sign * Math.sqrt(r ** 2 - d ** 2)) / 2, d / 2);
+          p5.line((sign * Math.sqrt(r ** 2 - d ** 2)) / 2, d / 2, 0, d);
         }
-      } else if (d > 0) {
-        p5.line(0, 0, -(3 * r) / 2, 0);
+
+        //テキストの描画
+        p5.push();
+        p5.translate(0, 30);
+        p5.noStroke();
+        p5.textAlign(p5.CENTER);
+        p5.textSize(15);
+        p5.fill(255);
+        p5.text(fingerNames[n], 0, 0);
+        p5.pop();
+        p5.pop();
+      });
+
+      //全体座標の回転と高さ方向へのtranslate
+      let tmp_l_d = 0;
+      let tmp_r_d = 0;
+
+      if (r < Math.abs(left_d)) {
+        tmp_l_d = -r;
+      } else if (left_d > 0) {
+        tmp_l_d = 0;
       } else {
-        if (r < p5.abs(d)) {
-          p5.line(0, 0, 0, -3 * r);
-        } else {
-          p5.line(0, 0, -p5.sqrt(r ** 2 - d ** 2), (3 * d) / 2);
-          p5.line(-p5.sqrt(r ** 2 - d ** 2), (3 * d) / 2, 0, 3 * d);
-        }
+        tmp_l_d = left_d;
       }
-      p5.push();
-      p5.translate(0, 30);
-      p5.noStroke();
-      p5.textAlign(p5.CENTER);
-      p5.textSize(15);
-      p5.fill(255);
-      p5.text(fingerNames[n], 0, 0);
-      p5.pop();
+      if (r < Math.abs(right_d)) {
+        tmp_r_d = -r;
+      } else if (right_d > 0) {
+        tmp_r_d = 0;
+      } else {
+        tmp_r_d = right_d;
+      }
 
-      p5.pop();
+      p5.translate(0, (tmp_l_d + tmp_r_d) / 2);
+      p5.rotate(-Math.atan2(tmp_l_d - tmp_r_d, 2 * offset));
     }
-
-    p5.pop();
-  });
+  }
 };
